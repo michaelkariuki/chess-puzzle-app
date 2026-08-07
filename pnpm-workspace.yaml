@@ -1,0 +1,4 @@
+# unrs-resolver is a transitive dep of eslint's resolver; its postinstall build
+# is not needed for this project.
+allowBuilds:
+  unrs-resolver: false
