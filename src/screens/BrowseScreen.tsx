@@ -85,16 +85,33 @@ export function BrowseScreen({ onOpenPuzzle }: Props) {
 
   // Stable identity: an inline arrow would give every row a new prop on every
   // keystroke, defeating React.memo and remounting the visible window.
+  // Rows are handed the colours they need rather than each calling
+  // useAppTheme. Every row was its own subscriber to the theme store, and
+  // rows mount and unmount constantly while scrolling a windowed list.
+  const rowColors = useMemo(
+    () => ({
+      surface: c.surface,
+      surfaceStrong: c.surfaceStrong,
+      border: c.border,
+      text: c.text,
+      textMuted: c.textMuted,
+      success: c.success,
+      successSurface: c.successSurface,
+    }),
+    [c],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Puzzle }) => (
       <PuzzleRow
         puzzle={item}
         solved={solvedIds.has(item.id)}
         userRating={progress.rating}
+        colors={rowColors}
         onOpen={onOpenPuzzle}
       />
     ),
-    [solvedIds, progress.rating, onOpenPuzzle],
+    [solvedIds, progress.rating, onOpenPuzzle, rowColors],
   );
 
   const activeCount = activeThemes.length + (bandIdx !== 0 ? 1 : 0) + (hideSolved ? 1 : 0);
@@ -302,18 +319,29 @@ function Chip({
   );
 }
 
+interface RowColors {
+  surface: string;
+  surfaceStrong: string;
+  border: string;
+  text: string;
+  textMuted: string;
+  success: string;
+  successSurface: string;
+}
+
 const PuzzleRow = React.memo(function PuzzleRow({
   puzzle,
   solved,
   userRating,
+  colors: c,
   onOpen,
 }: {
   puzzle: Puzzle;
   solved: boolean;
   userRating: number;
+  colors: RowColors;
   onOpen: (id: string) => void;
 }) {
-  const c = useAppTheme();
   const delta = puzzle.rating - userRating;
   const relative = delta > 200 ? 'harder' : delta < -200 ? 'easier' : 'well matched';
   const moves = Math.ceil(puzzle.solution.length / 2);

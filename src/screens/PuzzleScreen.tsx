@@ -12,6 +12,9 @@ import { usePuzzle } from '@/src/state/PuzzleContext';
 import { useLayout } from '@/src/theme/layout';
 import { useAppTheme } from '@/src/theme/use-app-theme';
 
+/** Swallows input during a transition without changing Board's contract. */
+const noop = () => {};
+
 interface Props {
   /** Called when the player leaves the puzzle (back to home). */
   onExit?: () => void;
@@ -64,7 +67,12 @@ export function PuzzleScreen({ onExit, puzzleId }: Props) {
     if (!session || finished) void loadNextPuzzle();
   }, [hydrated, session, loading, error, loadNextPuzzle, loadPuzzleById, puzzleId]);
 
-  if (loading || !session) {
+  // Only take the board down when there's nothing to show. Once a session
+  // exists, keep it mounted through the transition: loading from the queue or
+  // the bundled set is effectively instant, so swapping in a spinner produced
+  // a jarring flash — and unmounting the board was what orphaned the exiting
+  // highlight animations in the first place.
+  if (!session) {
     return (
       <Screen narrow scroll={false}>
         <View style={styles.centered}>
@@ -89,7 +97,7 @@ export function PuzzleScreen({ onExit, puzzleId }: Props) {
       session={session}
       orientation={orientation}
       size={boardSize}
-      showLegalMoves={settings.showLegalMoves}
+      showLegalMoves={settings.showLegalMoves && !loading}
       hintSquares={
         hint?.kind === 'piece'
           ? { from: hint.square }
@@ -97,7 +105,7 @@ export function PuzzleScreen({ onExit, puzzleId }: Props) {
             ? { from: hint.from, to: hint.to }
             : null
       }
-      onMove={move}
+      onMove={loading ? noop : move}
     />
   );
 
@@ -113,6 +121,7 @@ export function PuzzleScreen({ onExit, puzzleId }: Props) {
       onGiveUp={giveUp}
       onNext={() => void loadNextPuzzle()}
       onExit={onExit}
+      loadingNext={loading}
     />
   );
 
@@ -144,6 +153,7 @@ interface PanelProps {
   onGiveUp: () => void;
   onNext: () => void;
   onExit?: () => void;
+  loadingNext: boolean;
 }
 
 function PuzzlePanel({
@@ -157,18 +167,21 @@ function PuzzlePanel({
   onGiveUp,
   onNext,
   onExit,
+  loadingNext,
 }: PanelProps) {
   const { status, puzzle, hintsUsed } = session;
   const finished = status === 'solved' || status === 'failed';
   const remaining = movesRemaining(session);
 
-  const banner = bannerFor(
-    status,
-    puzzle.rating,
-    puzzle.themes,
-    attemptsRemaining(session),
-    hintsUsed,
-  );
+  const banner = loadingNext
+    ? ({ tone: 'neutral', title: 'Loading next puzzle…', subtitle: '' } as const)
+    : bannerFor(
+        status,
+        puzzle.rating,
+        puzzle.themes,
+        attemptsRemaining(session),
+        hintsUsed,
+      );
 
   return (
     <Animated.View
@@ -199,7 +212,13 @@ function PuzzlePanel({
           entering={FadeInDown.duration(260).springify().damping(18)}
           style={styles.actions}
         >
-          <Button label="Next puzzle" variant="primary" onPress={onNext} style={styles.flex} />
+          <Button
+            label="Next puzzle"
+            variant="primary"
+            onPress={onNext}
+            disabled={loadingNext}
+            style={styles.flex}
+          />
           {onExit ? <Button label="Home" variant="ghost" onPress={onExit} /> : null}
         </Animated.View>
       ) : (

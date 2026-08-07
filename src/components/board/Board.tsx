@@ -19,6 +19,7 @@ import {
   boardSquares,
   isPromotion,
   legalDestinations,
+  movableSquares,
   type SessionState,
 } from '@/src/chess/puzzle-session';
 import type { Square as SquareName } from '@/src/chess/types';
@@ -27,6 +28,11 @@ import { MovingPiece } from './MovingPiece';
 import { PromotionPicker } from './PromotionPicker';
 import { Square } from './Square';
 import { useMoveAnimation } from './use-move-animation';
+
+/** Destinations from a square, as a Set. Backed by the cached move map. */
+function legalTargetsFor(session: SessionState, from: SquareName): Set<string> {
+  return new Set(legalDestinations(session, from));
+}
 
 /** Gutter reserved for rank/file labels around the board. */
 const COORD_GUTTER = 16;
@@ -91,10 +97,16 @@ export function Board({
     transform: [{ translateX: shake.value }],
   }));
 
+  // A Set, not an array: this is consulted once per square, so `includes` made
+  // it O(64 x targets) on every render.
   const legalTargets = useMemo(
-    () => (selected && showLegalMoves ? legalDestinations(session, selected) : []),
+    () => new Set(selected && showLegalMoves ? legalDestinations(session, selected) : []),
     [selected, session, showLegalMoves],
   );
+
+  // Which squares have any legal move at all — one lookup instead of calling
+  // into move generation per tap.
+  const movable = useMemo(() => movableSquares(session), [session]);
 
   // Deselect when the board changes underneath us (opponent reply, new puzzle).
   const fenRef = React.useRef(session.fen);
@@ -108,10 +120,10 @@ export function Board({
       if (session.locked) return;
 
       if (selected && square !== selected) {
-        const isLegalDestination = legalDestinations(session, selected).includes(square);
+        const isLegalDestination = legalTargetsFor(session, selected).has(square);
 
         // Tapping another of your own pieces re-selects rather than failing.
-        if (!isLegalDestination && legalDestinations(session, square).length > 0) {
+        if (!isLegalDestination && movable.has(square)) {
           setSelected(square);
           return;
         }
@@ -131,9 +143,9 @@ export function Board({
         return;
       }
 
-      setSelected(legalDestinations(session, square).length > 0 ? square : null);
+      setSelected(movable.has(square) ? square : null);
     },
-    [selected, session, onMove],
+    [selected, session, onMove, movable],
   );
 
   const handlePromotionChoice = useCallback(
@@ -193,7 +205,7 @@ export function Board({
                       session.wrongMove?.from === name || session.wrongMove?.to === name
                     }
                     isHinted={hintSquares?.from === name || hintSquares?.to === name}
-                    isLegalTarget={legalTargets.includes(name)}
+                    isLegalTarget={legalTargets.has(name)}
                     onPress={handlePress}
                   />
                 );

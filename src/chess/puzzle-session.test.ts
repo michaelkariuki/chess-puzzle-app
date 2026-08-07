@@ -1,6 +1,11 @@
+import { Chess } from 'chess.js';
+
 import {
   applyOpponentReply,
   beginPuzzle,
+  clearMoveMapCache,
+  legalMoveMap,
+  movableSquares,
   clearWrongMove,
   createSession,
   giveUp,
@@ -402,5 +407,91 @@ describe('configurable attempt limit', () => {
     s = wrong(s);
     expect(s.status).toBe('awaiting-move');
     expect(s.maxAttempts).toBe(5);
+  });
+});
+
+describe('legal move map', () => {
+  beforeEach(clearMoveMapCache);
+
+  it('groups every legal move by its origin square', () => {
+    const map = legalMoveMap(REAL_PUZZLE.fen);
+    const chess = new Chess(REAL_PUZZLE.fen);
+    const all = chess.moves({ verbose: true });
+
+    const grouped = [...map.values()].reduce((n, list) => n + list.length, 0);
+    expect(grouped).toBe(all.length);
+    for (const move of all) {
+      expect(map.get(move.from)?.some((m) => m.to === move.to)).toBe(true);
+    }
+  });
+
+  it('agrees with chess.js per square', () => {
+    const chess = new Chess(REAL_PUZZLE.fen);
+    const map = legalMoveMap(REAL_PUZZLE.fen);
+    for (const from of map.keys()) {
+      const expected = chess
+        .moves({ square: from as never, verbose: true })
+        .map((m) => m.to)
+        .sort();
+      const actual = map.get(from)!.map((m) => m.to).sort();
+      expect(actual).toEqual(expected);
+    }
+  });
+
+  it('returns the identical object on a cache hit', () => {
+    expect(legalMoveMap(REAL_PUZZLE.fen)).toBe(legalMoveMap(REAL_PUZZLE.fen));
+  });
+
+  it('keys by FEN, so a different position gets a different map', () => {
+    const other = legalMoveMap(ONE_MOVE_PUZZLE.fen);
+    expect(other).not.toBe(legalMoveMap(REAL_PUZZLE.fen));
+  });
+
+  /** The cache must not grow without bound across a long session. */
+  it('evicts once past its limit', () => {
+    // 40 distinct positions, limit is 32.
+    const chess = new Chess();
+    const fens: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const moves = chess.moves();
+      if (!moves.length) break;
+      chess.move(moves[0]);
+      fens.push(chess.fen());
+    }
+    fens.forEach((f) => legalMoveMap(f));
+
+    // The earliest position should have been evicted, so it rebuilds fresh.
+    const first = legalMoveMap(fens[0]);
+    expect(first).not.toBe(legalMoveMap(fens[1]));
+    // ...but the map is still correct after eviction.
+    const chess2 = new Chess(fens[0]);
+    const total = [...first.values()].reduce((n, l) => n + l.length, 0);
+    expect(total).toBe(chess2.moves({ verbose: true }).length);
+  });
+
+  it('movableSquares lists exactly the squares with a legal move', () => {
+    const s = createSession(REAL_PUZZLE, 0);
+    const movable = movableSquares(s);
+    expect(movable.has('e4')).toBe(true); // knight can move
+    expect(movable.has('a8')).toBe(false); // black's rook, not White's turn
+    expect(movable.size).toBe(legalMoveMap(REAL_PUZZLE.fen).size);
+  });
+
+  it('movableSquares is empty while the board is locked', () => {
+    const locked = playMove(createSession(REAL_PUZZLE, 0), 'e4', 'g5').state;
+    expect(movableSquares(locked).size).toBe(0);
+  });
+
+  it('legalDestinations still matches chess.js after the rewrite', () => {
+    const s = createSession(REAL_PUZZLE, 0);
+    const chess = new Chess(REAL_PUZZLE.fen);
+    const expected = chess.moves({ square: 'e4', verbose: true }).map((m) => m.to).sort();
+    expect(legalDestinations(s, 'e4').sort()).toEqual(expected);
+  });
+
+  it('isPromotion still works off the cached map', () => {
+    const s = createSession(UNDERPROMOTION_PUZZLE, 0);
+    expect(isPromotion(s, 'e7', 'e8')).toBe(true);
+    expect(isPromotion(s, 'a1', 'a2')).toBe(false);
   });
 });
