@@ -3,8 +3,10 @@
  * module, so the app has no runtime file IO and no asset-bundler config.
  *
  * Source: lichess-org/lila, public/piece/cburnett
- * Licence: CC BY-SA 3.0 — attribution is required if this app is distributed.
- *          See Docs/PLAN.md §3.2.
+ * Licence: GPLv2+ (per lichess-org/lila COPYING.md, "Exceptions (free)").
+ *          NOT CC BY-SA — that was an earlier mistake in this project.
+ *          GPL is copyleft, so bundling these in a distributed app carries
+ *          obligations. See Docs/PLAN.md §3.2.
  *
  * Usage: pnpm fetch-pieces
  */
@@ -51,8 +53,8 @@ async function main() {
  * GENERATED FILE — do not edit by hand.
  * Regenerate with: pnpm fetch-pieces
  *
- * Cburnett chess pieces from lichess-org/lila.
- * Licensed CC BY-SA 3.0 — attribution required if this app is distributed.
+ * Cburnett chess pieces from lichess-org/lila, by Colin M.L. Burnett.
+ * Licensed GPLv2+ — copyleft; see Docs/PLAN.md §3.2 before distributing.
  */
 
 import type { PieceCode } from '@/src/chess/types';

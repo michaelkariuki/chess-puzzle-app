@@ -27,6 +27,7 @@ pnpm start          # then press 'a' (Android), 'i' (iOS), or 'w' (web)
 | `pnpm check` | typecheck + lint + test — the quality gate |
 | `pnpm fetch-pieces` | Regenerate the inlined piece SVGs |
 | `pnpm seed-puzzles` | Regenerate puzzle data (see [Puzzle data](#puzzle-data)) |
+| `pnpm make-sounds` | Regenerate the synthesised sound effects |
 
 ## What's in it
 
@@ -37,6 +38,7 @@ pnpm start          # then press 'a' (Android), 'i' (iOS), or 'w' (web)
 - Local Elo rating that steers which puzzles you're served
 - Browse: 2,000 bundled puzzles, filterable by rating band and theme, searchable
 - Configurable tries per puzzle (1 / 2 / 3 / 5 / unlimited)
+- Sound for moves, captures, checks, solves and failures — toggleable
 - Full offline play; light and dark themes; responsive phone → desktop layout
 
 ## Running it on your phone
@@ -117,6 +119,7 @@ src/
   components/
     board/                  hand-rolled board, SVG pieces, move animation
     ui/                     Button, Banner, StatTile, SegmentedControl, Screen
+  audio/                    sound selection (pure) + expo-audio playback
   screens/                  Home, Puzzle, Browse, Progress
   state/PuzzleContext.tsx   reducer over the solve machine
   theme/                    colour tokens, contrast checks, layout breakpoints
@@ -124,6 +127,9 @@ src/
 scripts/
   fetch-pieces.mjs          downloads + inlines the Cburnett piece set
   seed-puzzles.mjs          builds the puzzle data files
+  make-sounds.mjs           synthesises the sound effects
+
+assets/sounds/              7 generated WAVs (~145 KB)
 ```
 
 Everything in `src/chess/` is framework-free and directly unit-tested — that's where
@@ -136,7 +142,7 @@ There is **no account and no server**. Everything lives on the device in AsyncSt
 | Key | Holds |
 |---|---|
 | `chesspuzzle:v1:progress` | rating, solved, attempted, streaks, seen puzzle ids |
-| `chesspuzzle:v1:settings` | theme, show-legal-moves, tries per puzzle |
+| `chesspuzzle:v1:settings` | theme, show-legal-moves, tries per puzzle, sound |
 | `chesspuzzle:v1:queue` | prefetched puzzles for offline play |
 
 Scope: on web that's `localStorage` (per-browser, cleared with site data); on native it's
@@ -206,6 +212,25 @@ There is **no public Lichess endpoint that lists or searches puzzles** (`/api/pu
 `/api/puzzle/list`, `/api/puzzles` all 404, verified 2026-08-07). That is why the browse
 catalogue is bundled rather than paginated from the network.
 
+## Sound
+
+Seven effects — move, capture, check, correct, solved, wrong, failed — **synthesised from
+scratch** by `scripts/make-sounds.mjs` (oscillators plus a seeded noise burst, written
+straight to WAV). ~145 KB total.
+
+They are generated rather than downloaded for a specific reason: Lichess's own sound files
+are listed under **"Exceptions (non-free)"** in lila's `COPYING.md`, so they can't be
+bundled. Generating avoids third-party assets entirely — the output is original work with
+no attribution or licence obligation.
+
+The generator is deterministic (seeded PRNG), so re-running produces byte-identical files
+and won't churn the repo.
+
+Which sound plays is decided by `src/audio/sound-for-move.ts`, a pure function that is
+unit-tested: terminal puzzle states beat check, check beats capture, capture beats a quiet
+move. Playback never throws into the move handler — if audio is unavailable the app carries
+on silently. Toggle in Progress → Settings → Sound.
+
 ## Testing
 
 ```bash
@@ -226,12 +251,20 @@ pnpm check
 
 ## Attribution
 
-Chess pieces are the **Cburnett** set from
+Chess pieces are the **Cburnett** set by Colin M.L. Burnett, from
 [lichess-org/lila](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett),
-licensed **CC BY-SA 3.0**. Attribution must be shown in-app before any public
-distribution — it currently appears in Progress → About.
+licensed **GPLv2+** (per lila's `COPYING.md`, "Exceptions (free)").
+
+> **GPL is copyleft, not just attribution.** For personal use this is a non-issue. Before
+> distributing publicly, decide deliberately: either license this project GPL-compatible,
+> or swap the piece set for a permissively-licensed one. Attribution alone is not
+> sufficient compliance. Attribution currently appears in Progress → About.
 
 Puzzles from [Lichess](https://lichess.org), CC0.
+
+**Sounds are generated, not sourced.** Lichess's own sound files are listed under
+"Exceptions (**non-free**)" in the same `COPYING.md`, so they are not used here. See
+[Sound](#sound).
 
 ## Planning
 

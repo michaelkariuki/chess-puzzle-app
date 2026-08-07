@@ -60,6 +60,17 @@ export interface MoveResult {
    * OPPONENT_REPLY_DELAY_MS and then calling `applyOpponentReply`.
    */
   pendingOpponentReply: boolean;
+  /**
+   * What the move did, for sound and feedback. Reported here because chess.js
+   * already computed it — re-deriving it in the view would mean replaying the
+   * position a second time.
+   */
+  effect: MoveEffect | null;
+}
+
+export interface MoveEffect {
+  captured: boolean;
+  check: boolean;
 }
 
 /** Rebuild a chess.js instance for a given state. */
@@ -174,7 +185,7 @@ export function playMove(
   now = 0,
 ): MoveResult {
   if (state.locked || state.status === 'solved' || state.status === 'failed') {
-    return { state, pendingOpponentReply: false };
+    return { state, pendingOpponentReply: false, effect: null };
   }
 
   const chess = engineFor(state);
@@ -183,7 +194,7 @@ export function playMove(
     move = chess.move({ from, to, promotion });
   } catch {
     // Not a legal chess move at all — ignore it entirely.
-    return { state, pendingOpponentReply: false };
+    return { state, pendingOpponentReply: false, effect: null };
   }
 
   const played: Uci = move.lan;
@@ -204,6 +215,7 @@ export function playMove(
         finishedAt: exhausted ? now : null,
       },
       pendingOpponentReply: false,
+      effect: { captured: Boolean(move.captured), check: chess.isCheck() },
     };
   }
 
@@ -223,6 +235,7 @@ export function playMove(
       finishedAt: lineExhausted ? now : null,
     },
     pendingOpponentReply: !lineExhausted,
+    effect: { captured: Boolean(move.captured), check: chess.isCheck() },
   };
 }
 
@@ -231,30 +244,42 @@ export function playMove(
  * OPPONENT_REPLY_DELAY_MS when `playMove` reported `pendingOpponentReply`.
  */
 export function applyOpponentReply(state: SessionState): SessionState {
-  if (state.status !== 'opponent-replying') return state;
+  return applyOpponentReplyWithEffect(state).state;
+}
+
+/** As `applyOpponentReply`, but also reports what the reply did. */
+export function applyOpponentReplyWithEffect(state: SessionState): {
+  state: SessionState;
+  effect: MoveEffect | null;
+} {
+  if (state.status !== 'opponent-replying') return { state, effect: null };
 
   const reply = state.puzzle.solution[state.plyIndex];
   const parsed = reply ? parseUci(reply) : null;
   if (!parsed) {
     // Malformed solution data — treat the puzzle as complete rather than wedging.
-    return { ...state, status: 'solved', locked: true };
+    return { state: { ...state, status: 'solved', locked: true }, effect: null };
   }
 
   const chess = engineFor(state);
+  let move;
   try {
-    chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
+    move = chess.move({ from: parsed.from, to: parsed.to, promotion: parsed.promotion });
   } catch {
-    return { ...state, status: 'solved', locked: true };
+    return { state: { ...state, status: 'solved', locked: true }, effect: null };
   }
 
   return {
-    ...state,
-    status: 'awaiting-move',
-    plyIndex: state.plyIndex + 1,
-    fen: chess.fen(),
-    turn: chess.turn(),
-    lastMove: { from: parsed.from, to: parsed.to },
-    locked: false,
+    state: {
+      ...state,
+      status: 'awaiting-move',
+      plyIndex: state.plyIndex + 1,
+      fen: chess.fen(),
+      turn: chess.turn(),
+      lastMove: { from: parsed.from, to: parsed.to },
+      locked: false,
+    },
+    effect: { captured: Boolean(move.captured), check: chess.isCheck() },
   };
 }
 

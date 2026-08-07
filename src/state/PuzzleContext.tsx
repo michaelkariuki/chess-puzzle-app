@@ -17,7 +17,7 @@ import React, {
 } from 'react';
 
 import {
-  applyOpponentReply,
+  applyOpponentReplyWithEffect,
   beginPuzzle,
   clearWrongMove,
   createSession,
@@ -33,6 +33,8 @@ import {
   type SessionState,
 } from '@/src/chess/puzzle-session';
 import { applyOutcome, difficultyFor } from '@/src/chess/rating';
+import { soundForMove } from '@/src/audio/sound-for-move';
+import { useSounds } from '@/src/audio/use-sounds';
 import {
   INITIAL_PROGRESS,
   DEFAULT_SETTINGS,
@@ -132,6 +134,7 @@ const PuzzleContext = createContext<PuzzleContextValue | null>(null);
 
 export function PuzzleProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const play = useSounds(state.settings.soundEnabled);
 
   // Timers must be cancelled on unmount or a fast "next puzzle" tap fires a
   // reply into a session that no longer exists.
@@ -179,13 +182,15 @@ export function PuzzleProvider({ children }: { children: React.ReactNode }) {
     const sessionAtSchedule = state.session;
     introTimer.current = setTimeout(() => {
       dispatch({ type: 'session', session: beginPuzzle(sessionAtSchedule) });
+      // The setup move slides in, so it should be heard as well as seen.
+      play('move');
     }, INTRO_DELAY_MS);
 
     return () => {
       if (introTimer.current) clearTimeout(introTimer.current);
       introTimer.current = null;
     };
-  }, [state.session]);
+  }, [state.session, play]);
 
   // Keep the offline queue topped up in the background.
   useEffect(() => {
@@ -269,7 +274,7 @@ export function PuzzleProvider({ children }: { children: React.ReactNode }) {
       const current = state.session;
       if (!current) return;
 
-      const { state: next, pendingOpponentReply } = playMove(
+      const { state: next, pendingOpponentReply, effect } = playMove(
         current,
         from,
         to,
@@ -281,9 +286,34 @@ export function PuzzleProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'session', session: next });
       dispatch({ type: 'clear-hint' });
 
+      play(
+        soundForMove({
+          captured: effect?.captured ?? false,
+          check: effect?.check ?? false,
+          status:
+            next.status === 'solved'
+              ? 'solved'
+              : next.status === 'failed'
+                ? 'failed'
+                : next.status === 'wrong'
+                  ? 'wrong'
+                  : 'continuing',
+          byOpponent: false,
+        }),
+      );
+
       if (pendingOpponentReply) {
         replyTimer.current = setTimeout(() => {
-          dispatch({ type: 'session', session: applyOpponentReply(next) });
+          const reply = applyOpponentReplyWithEffect(next);
+          dispatch({ type: 'session', session: reply.state });
+          play(
+            soundForMove({
+              captured: reply.effect?.captured ?? false,
+              check: reply.effect?.check ?? false,
+              status: 'continuing',
+              byOpponent: true,
+            }),
+          );
         }, OPPONENT_REPLY_DELAY_MS);
         return;
       }
@@ -299,7 +329,7 @@ export function PuzzleProvider({ children }: { children: React.ReactNode }) {
         settle(next, state.progress);
       }
     },
-    [state.session, state.progress, settle],
+    [state.session, state.progress, settle, play],
   );
 
   const requestHint = useCallback(() => {
@@ -324,8 +354,9 @@ export function PuzzleProvider({ children }: { children: React.ReactNode }) {
     clearTimers();
     const next = giveUpSession(state.session, Date.now());
     dispatch({ type: 'session', session: next });
+    play('failed');
     settle(next, state.progress);
-  }, [state.session, state.progress, settle, clearTimers]);
+  }, [state.session, state.progress, settle, clearTimers, play]);
 
   const retry = useCallback(() => {
     if (!state.session) return;

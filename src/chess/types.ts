@@ -88,6 +88,7 @@ export interface Settings {
    * `UNLIMITED_ATTEMPTS` (0) means keep trying forever.
    */
   maxAttempts: number;
+  soundEnabled: boolean;
 }
 
 /** Sentinel for "never fail me" — 0 rather than Infinity, which JSON drops. */
@@ -100,4 +101,5 @@ export const DEFAULT_SETTINGS: Settings = {
   showLegalMoves: true,
   autoPromoteToQueen: false,
   maxAttempts: 3,
+  soundEnabled: true,
 };

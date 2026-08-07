@@ -36,7 +36,7 @@ roughly **two weeks of evenings** to a genuinely usable app, not ten weeks of ph
 | Custom puzzle generation | Depends on Stockfish. |
 | Puzzle editor | No user demand for a solo app. |
 | Accounts, cloud sync, social | Local-only is the stated goal. |
-| Sound effects | Nice-to-have; add once the core loop is fun. |
+| ~~Sound effects~~ | **Done.** Synthesised rather than sourced — Lichess's sound files are non-free (see §3.2). |
 | Drag-to-move | Tap-to-move first. Drag is an enhancement, not a requirement. |
 
 ---
@@ -196,9 +196,13 @@ The classic Lichess piece set, fetched from `lichess-org/lila` (each file verifi
 590–910 bytes). A script downloads all 12 and inlines them into a single generated TypeScript
 module, so there is no runtime file IO and no asset-bundling configuration.
 
-> **Attribution:** the Cburnett set is licensed **CC BY-SA 3.0**. If this app is ever
-> distributed publicly, credit must appear in an about/licenses screen. Tracked as a release
-> blocker in §6.
+ > **Licence — corrected.** This plan originally recorded the Cburnett set as CC BY-SA 3.0.
+> That was wrong. Per lila's `COPYING.md`, `public/piece/cburnett` is by Colin M.L. Burnett
+> and licensed **GPLv2+**, in the "Exceptions (free)" table.
+>
+> The difference matters: GPL is copyleft, not an attribution-only licence. Crediting it is
+> not by itself compliance. Before any public distribution, either license this project
+> GPL-compatible or replace the piece set. Tracked as a release blocker in §6.
 
 Unicode chess glyphs were rejected — they render inconsistently across Android and iOS system
 fonts, and often fall back to hollow outlines that make white and black pieces hard to tell
@@ -454,7 +458,8 @@ solo project. A `pnpm typecheck && pnpm lint && pnpm test` script is the quality
 | `/api/puzzle/next` rate-limiting | **Confirmed, and more aggressive than expected.** Not a hypothetical: paced build-time runs were `429`-ed within a couple of dozen requests. The old plan's "100 req/min" figure was invented; the real allowance for unauthenticated clients is far lower. | Bundled seed set means the app works with zero network. Prefetch queue keeps 20 puzzles ahead and refills opportunistically. Back off on `429`. A hard-coded fallback puzzle in `puzzle-source.ts` guarantees `nextPuzzleFor` can never fail. Regenerate seeds via `--from-db`, not the API. |
 | Board performance | 64 `Pressable`s with SVG children, re-rendered per move | Memoize `Square`, key by square name, only re-render changed squares. Measure before optimising further. |
 | `react-native-svg` + SDK 54 / RN 0.81 | Not yet verified in this project | Install via `npx expo install` (SDK-matched), verify render on device in Step 3. If it fails, fall back to bundled PNGs via `expo-image`. |
-| Cburnett CC BY-SA attribution | Required if distributed | Licenses screen before any public release. Not a blocker for personal use. |
+| Cburnett pieces are **GPLv2+** | Copyleft, not attribution-only. Originally mis-recorded here as CC BY-SA 3.0. | Fine for personal use. Before public distribution: license this project GPL-compatible, or swap in a permissive piece set. |
+| Lichess sound files are **non-free** | Listed under "Exceptions (non-free)" in lila's COPYING.md | Not used. Sounds are synthesised from scratch by `scripts/make-sounds.mjs` — no third-party assets, no licence risk. |
 | Rating cold-start feels wrong | Everyone starts at 1200 regardless of actual strength | K=32 early converges within ~20 puzzles. Optionally offer a "roughly how strong are you?" prompt on first run. |
 
 ---

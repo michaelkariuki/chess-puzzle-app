@@ -2,8 +2,8 @@
  * GENERATED FILE — do not edit by hand.
  * Regenerate with: pnpm fetch-pieces
  *
- * Cburnett chess pieces from lichess-org/lila.
- * Licensed CC BY-SA 3.0 — attribution required if this app is distributed.
+ * Cburnett chess pieces from lichess-org/lila, by Colin M.L. Burnett.
+ * Licensed GPLv2+ — copyleft; see Docs/PLAN.md §3.2 before distributing.
  */
 
 import type { PieceCode } from '@/src/chess/types';
