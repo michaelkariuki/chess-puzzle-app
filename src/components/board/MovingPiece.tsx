@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {
   runOnJS,
@@ -44,13 +44,26 @@ export function MovingPiece({
 
   const progress = useSharedValue(0);
 
+  // The slide can outlive the component when the board is torn down mid-move;
+  // completing into an unmounted tree would set state on a dead component.
+  const alive = useRef(true);
   useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const finish = () => {
+      if (alive.current) onComplete();
+    };
     progress.value = 0;
     progress.value = withTiming(
       1,
       { duration: SLIDE_DURATION_MS, easing: Easing.out(Easing.cubic) },
       (finished) => {
-        if (finished) runOnJS(onComplete)();
+        if (finished) runOnJS(finish)();
       },
     );
     // Re-run whenever the move changes, not just on mount.

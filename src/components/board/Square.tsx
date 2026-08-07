@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 import type { Piece as PieceModel, Square as SquareName } from '@/src/chess/types';
 import { Piece } from './Piece';
@@ -76,7 +76,13 @@ function SquareComponent({
           // rather than snapping between tints.
           key={overlay}
           entering={animate ? FadeIn.duration(HIGHLIGHT_FADE_MS) : undefined}
-          exiting={animate ? FadeOut.duration(HIGHLIGHT_FADE_MS) : undefined}
+          // Deliberately NO exiting animation. Reanimated keeps exiting views
+          // mounted until their animation finishes; when an ancestor unmounts
+          // (as the board did between puzzles) those views are orphaned and
+          // stay painted over whatever replaces them — highlight squares
+          // lingering on screen after the board is gone. A highlight
+          // disappearing instantly is fine; the fade-IN is what reads as
+          // polish.
           style={[StyleSheet.absoluteFill, { backgroundColor: overlay }]}
         />
       ) : null}
